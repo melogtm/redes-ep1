@@ -1,0 +1,24 @@
+name: Python quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check formatting
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: format --check .
+
+      - name: Run linter
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: check .
