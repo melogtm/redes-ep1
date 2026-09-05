@@ -7,8 +7,8 @@ class LineBuffer:
         self._buf = bytearray()
 
     def feed(self, data: bytes) -> list[str]:
-        # TCP entrega um fluxo: uma leitura pode conter várias mensagens 
-        # ou parte de uma.
+        # TCP entrega um fluxo: uma leitura pode conter várias mensagens ou
+        # apenas parte de uma.
         self._buf.extend(data)
 
         partes = self._buf.split(b"\n")

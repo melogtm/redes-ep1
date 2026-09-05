@@ -176,8 +176,8 @@ def comando_lance(sessao: Sessao, partes: list, lotes: dict, chaves: dict) -> No
 
         agora = time.time()
 
-        # Um lance nos últimos 10 segundos estende o leilão para evitar encerramento 
-        # abrupto.
+        # Um lance nos últimos 10 segundos estende o leilão para evitar um
+        # encerramento abrupto.
         if agora - tempo_fim_anterior < JANELA_DE_TEMPO_SEGUNDOS:
             lote.tempo_fim = agora + JANELA_DE_TEMPO_SEGUNDOS
 
