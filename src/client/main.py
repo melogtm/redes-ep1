@@ -16,7 +16,6 @@ from config_cliente import ConfigCliente
 from modelos import EventoCliente, LoteCliente
 from protocolo_cliente import ErroProtocolo
 
-
 # Pushes chegam por uma thread diferente daquela que lê input().
 # O lock evita que duas threads imprimam ao mesmo tempo.
 _PRINT_LOCK = threading.Lock()
@@ -47,47 +46,30 @@ def carregar_chave(
         "r",
         encoding="utf-8",
     ) as arquivo:
-
         for linha in arquivo:
             linha = linha.strip()
 
-            if (
-                not linha
-                or linha.startswith("#")
-            ):
+            if not linha or linha.startswith("#"):
                 continue
 
             partes = linha.split()
 
-            if (
-                len(partes) >= 2
-                and partes[0] == username
-            ):
+            if len(partes) >= 2 and partes[0] == username:
                 return partes[1]
 
-    raise ValueError(
-        f"usuário {username!r} "
-        f"não encontrado em {caminho}"
-    )
+    raise ValueError(f"usuário {username!r} não encontrado em {caminho}")
 
 
 def formatar_lote(
     lote: LoteCliente,
 ) -> str:
     fim = (
-        datetime
-        .fromtimestamp(lote.tempo_fim)
+        datetime.fromtimestamp(lote.tempo_fim)
         .astimezone()
-        .strftime(
-            "%Y-%m-%d %H:%M:%S %z"
-        )
+        .strftime("%Y-%m-%d %H:%M:%S %z")
     )
 
-    lider = (
-        lote.lider_atual
-        if lote.lider_atual is not None
-        else "-"
-    )
+    lider = lote.lider_atual if lote.lider_atual is not None else "-"
 
     return (
         f"[{lote.id}] "
@@ -106,10 +88,7 @@ def ao_evento(
 ) -> None:
     # PRICE_UPDATE, TIME_UPDATE, CLOSE e eventos de reconexão aparecem
     # imediatamente, mesmo enquanto o usuário está no menu.
-    imprimir(
-        f"\n[PUSH/{evento.tipo}] "
-        f"{evento.mensagem}"
-    )
+    imprimir(f"\n[PUSH/{evento.tipo}] {evento.mensagem}")
 
 
 def mostrar_ajuda() -> None:
@@ -127,9 +106,7 @@ def mostrar_ajuda() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description=(
-            "Cliente do projeto de leilão online"
-        )
+        description=("Cliente do projeto de leilão online")
     )
 
     # HOST e PORT são obrigatórios porque esses valores não aparecem
@@ -150,10 +127,7 @@ def main() -> int:
     parser.add_argument(
         "--username",
         required=True,
-        help=(
-            "usuário cadastrado "
-            "no arquivo de chaves do servidor"
-        ),
+        help=("usuário cadastrado no arquivo de chaves do servidor"),
     )
 
     parser.add_argument(
@@ -179,9 +153,7 @@ def main() -> int:
         else:
             # Não colocar a chave em --key reduz a exposição do segredo
             # no histórico do shell e na lista de processos.
-            chave = getpass.getpass(
-                "Chave HMAC: "
-            )
+            chave = getpass.getpass("Chave HMAC: ")
 
         config = ConfigCliente(
             host=args.host,
@@ -203,55 +175,36 @@ def main() -> int:
         ErroCliente,
         ErroProtocolo,
     ) as exc:
-        imprimir(
-            f"Erro ao iniciar: {exc}"
-        )
+        imprimir(f"Erro ao iniciar: {exc}")
 
         return 1
 
     try:
-        imprimir(
-            "Conectado e autenticado."
-        )
+        imprimir("Conectado e autenticado.")
 
         # Já mostra os lotes ativos ao entrar no programa.
         try:
-            lotes = cliente.listar_lotes(
-                apenas_ativos=True
-            )
+            lotes = cliente.listar_lotes(apenas_ativos=True)
 
-            imprimir(
-                "Lotes ativos:"
-            )
+            imprimir("Lotes ativos:")
 
             if not lotes:
-                imprimir(
-                    "  (nenhum lote OPEN)"
-                )
+                imprimir("  (nenhum lote OPEN)")
 
             for lote in lotes:
-                imprimir(
-                    "  "
-                    + formatar_lote(lote)
-                )
+                imprimir("  " + formatar_lote(lote))
 
         except (
             ErroCliente,
             ErroProtocolo,
         ) as exc:
-            imprimir(
-                "Não foi possível obter "
-                f"a lista inicial: {exc}"
-            )
+            imprimir(f"Não foi possível obter a lista inicial: {exc}")
 
         mostrar_ajuda()
 
         while True:
-
             try:
-                entrada = input(
-                    "leilao> "
-                ).strip()
+                entrada = input("leilao> ").strip()
 
             except EOFError:
                 entrada = "quit"
@@ -284,37 +237,21 @@ def main() -> int:
                 # LIST
                 # ------------------------------------------------------
                 if comando == "list":
-
-                    if (
-                        len(partes) > 2
-                        or (
-                            len(partes) == 2
-                            and partes[1].lower()
-                            != "all"
-                        )
+                    if len(partes) > 2 or (
+                        len(partes) == 2 and partes[1].lower() != "all"
                     ):
-                        imprimir(
-                            "uso: list [all]"
-                        )
+                        imprimir("uso: list [all]")
                         continue
 
-                    apenas_ativos = (
-                        len(partes) == 1
-                    )
+                    apenas_ativos = len(partes) == 1
 
-                    lotes = cliente.listar_lotes(
-                        apenas_ativos=apenas_ativos
-                    )
+                    lotes = cliente.listar_lotes(apenas_ativos=apenas_ativos)
 
                     if not lotes:
-                        imprimir(
-                            "(nenhum lote)"
-                        )
+                        imprimir("(nenhum lote)")
 
                     for lote in lotes:
-                        imprimir(
-                            formatar_lote(lote)
-                        )
+                        imprimir(formatar_lote(lote))
 
                     continue
 
@@ -322,25 +259,15 @@ def main() -> int:
                 # JOIN
                 # ------------------------------------------------------
                 if comando == "join":
-
                     if len(partes) != 2:
-                        imprimir(
-                            "uso: join <id>"
-                        )
+                        imprimir("uso: join <id>")
                         continue
 
-                    lote_id = int(
-                        partes[1]
-                    )
+                    lote_id = int(partes[1])
 
-                    lote = cliente.entrar_lote(
-                        lote_id
-                    )
+                    lote = cliente.entrar_lote(lote_id)
 
-                    imprimir(
-                        "Inscrito: "
-                        + formatar_lote(lote)
-                    )
+                    imprimir("Inscrito: " + formatar_lote(lote))
 
                     continue
 
@@ -348,16 +275,11 @@ def main() -> int:
                 # BID
                 # ------------------------------------------------------
                 if comando == "bid":
-
                     if len(partes) != 3:
-                        imprimir(
-                            "uso: bid <id> <preço>"
-                        )
+                        imprimir("uso: bid <id> <preço>")
                         continue
 
-                    lote_id = int(
-                        partes[1]
-                    )
+                    lote_id = int(partes[1])
 
                     preco = partes[2]
 
@@ -366,10 +288,7 @@ def main() -> int:
                         preco,
                     )
 
-                    imprimir(
-                        "Lance aceito: "
-                        + formatar_lote(lote)
-                    )
+                    imprimir("Lance aceito: " + formatar_lote(lote))
 
                     continue
 
@@ -377,52 +296,36 @@ def main() -> int:
                 # SHOW
                 # ------------------------------------------------------
                 if comando == "show":
-
                     lotes = sorted(
                         cliente.snapshot_lotes(),
                         key=lambda lote: lote.id,
                     )
 
                     if not lotes:
-                        imprimir(
-                            "(sem estado local de lotes)"
-                        )
+                        imprimir("(sem estado local de lotes)")
 
                     for lote in lotes:
-                        imprimir(
-                            formatar_lote(lote)
-                        )
+                        imprimir(formatar_lote(lote))
 
                     continue
 
-                imprimir(
-                    "comando desconhecido; "
-                    "use 'help'"
-                )
+                imprimir("comando desconhecido; use 'help'")
 
             except ResultadoLanceIndeterminado as exc:
-                imprimir(
-                    f"ATENÇÃO: {exc}"
-                )
+                imprimir(f"ATENÇÃO: {exc}")
 
             except OperacaoRejeitada as exc:
-                imprimir(
-                    str(exc)
-                )
+                imprimir(str(exc))
 
             except (
                 ErroCliente,
                 ErroProtocolo,
                 ValueError,
             ) as exc:
-                imprimir(
-                    f"Erro: {exc}"
-                )
+                imprimir(f"Erro: {exc}")
 
     except KeyboardInterrupt:
-        imprimir(
-            "\nInterrompido pelo usuário."
-        )
+        imprimir("\nInterrompido pelo usuário.")
 
     finally:
         cliente.encerrar()
@@ -431,6 +334,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(
-        main()
-    )
+    raise SystemExit(main())
