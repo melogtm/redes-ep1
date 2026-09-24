@@ -5,7 +5,6 @@ import hmac
 import re
 from decimal import Decimal, InvalidOperation
 
-
 _HEX_32 = re.compile(r"^[0-9a-fA-F]{32}$")
 
 
@@ -37,17 +36,13 @@ class LineBuffer:
 
         for parte in partes:
             if len(parte) > self._max:
-                raise ErroProtocolo(
-                    "linha recebida excede o limite configurado"
-                )
+                raise ErroProtocolo("linha recebida excede o limite configurado")
 
             if not parte:
                 continue
 
             try:
-                linhas.append(
-                    parte.decode("utf-8", errors="strict")
-                )
+                linhas.append(parte.decode("utf-8", errors="strict"))
             except UnicodeDecodeError as exc:
                 raise ErroProtocolo(
                     "servidor enviou texto que não é UTF-8 válido"
@@ -55,9 +50,7 @@ class LineBuffer:
 
         # Também protege contra uma linha maliciosa que nunca envia \n.
         if len(self._buf) > self._max:
-            raise ErroProtocolo(
-                "linha parcial excede o limite configurado"
-            )
+            raise ErroProtocolo("linha parcial excede o limite configurado")
 
         return linhas
 
@@ -132,9 +125,7 @@ def texto_assinado_lance(
 def validar_nonce(nonce: str) -> None:
     # O protocolo define nonce = 16 bytes = 32 caracteres hexadecimais.
     if not _HEX_32.fullmatch(nonce):
-        raise ErroProtocolo(
-            "CHALLENGE contém nonce fora do formato esperado"
-        )
+        raise ErroProtocolo("CHALLENGE contém nonce fora do formato esperado")
 
 
 def normalizar_preco(valor: str | Decimal) -> str:
@@ -151,25 +142,17 @@ def normalizar_preco(valor: str | Decimal) -> str:
     """
 
     try:
-        preco = (
-            valor
-            if isinstance(valor, Decimal)
-            else Decimal(str(valor).strip())
-        )
+        preco = valor if isinstance(valor, Decimal) else Decimal(str(valor).strip())
     except (InvalidOperation, ValueError) as exc:
         raise ValueError("preço inválido") from exc
 
     if not preco.is_finite() or preco <= 0:
-        raise ValueError(
-            "preço deve ser um decimal finito e maior que zero"
-        )
+        raise ValueError("preço deve ser um decimal finito e maior que zero")
 
     centavos = Decimal("0.01")
     quantizado = preco.quantize(centavos)
 
     if quantizado != preco:
-        raise ValueError(
-            "preço deve ter no máximo duas casas decimais"
-        )
+        raise ValueError("preço deve ter no máximo duas casas decimais")
 
     return format(quantizado, ".2f")

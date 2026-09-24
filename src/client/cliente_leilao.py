@@ -39,9 +39,7 @@ class TimeoutResposta(ErroCliente):
 
 class OperacaoRejeitada(ErroCliente):
     def __init__(self, operacao: str, motivo: str):
-        super().__init__(
-            f"{operacao} rejeitada: {motivo}"
-        )
+        super().__init__(f"{operacao} rejeitada: {motivo}")
         self.operacao = operacao
         self.motivo = motivo
 
@@ -87,28 +85,17 @@ class ClienteLeilao:
         chave: str,
         ao_evento: Callable[[EventoCliente], None] | None = None,
     ) -> None:
-        if not username or any(
-            caractere.isspace()
-            for caractere in username
-        ):
-            raise ValueError(
-                "username deve ser um token sem espaços"
-            )
+        if not username or any(caractere.isspace() for caractere in username):
+            raise ValueError("username deve ser um token sem espaços")
 
         if not chave:
-            raise ValueError(
-                "chave não pode ser vazia"
-            )
+            raise ValueError("chave não pode ser vazia")
 
         self.config = config
         self.username = username
         self._chave = chave
 
-        self._ao_evento = (
-            ao_evento
-            if ao_evento is not None
-            else lambda evento: None
-        )
+        self._ao_evento = ao_evento if ao_evento is not None else lambda evento: None
 
         # Protege troca/consulta do socket corrente.
         self._sock_lock = threading.RLock()
@@ -135,9 +122,7 @@ class ClienteLeilao:
         # O número da geração evita usar resposta de uma conexão anterior.
         self._inbox_cv = threading.Condition()
 
-        self._inbox: deque[
-            tuple[int, list[str]]
-        ] = deque(maxlen=2048)
+        self._inbox: deque[tuple[int, list[str]]] = deque(maxlen=2048)
 
         # A geração muda sempre que uma nova sessão TCP/autenticada nasce.
         self._generation = 0
@@ -164,10 +149,7 @@ class ClienteLeilao:
     def conectar(self) -> None:
         """Abre TCP, autentica e inicia as threads de background."""
 
-        if (
-            self._reader_thread is not None
-            and self._reader_thread.is_alive()
-        ):
+        if self._reader_thread is not None and self._reader_thread.is_alive():
             return
 
         sock, nonce = self._abrir_e_autenticar()
@@ -226,11 +208,7 @@ class ClienteLeilao:
             self._reader_thread,
             self._keepalive_thread,
         ):
-            if (
-                thread is not None
-                and thread.is_alive()
-                and thread is not atual
-            ):
+            if thread is not None and thread.is_alive() and thread is not atual:
                 thread.join(timeout=2.0)
 
         # Em Python não existe garantia de sobrescrever imediatamente
@@ -249,28 +227,19 @@ class ClienteLeilao:
 
             inicio = self._esperar(
                 geracao,
-                lambda p: (
-                    bool(p)
-                    and p[0] == "LIST_BEGIN"
-                ),
+                lambda p: bool(p) and p[0] == "LIST_BEGIN",
             )
 
             if len(inicio) != 2:
-                raise ErroProtocolo(
-                    "LIST_BEGIN malformado"
-                )
+                raise ErroProtocolo("LIST_BEGIN malformado")
 
             try:
                 quantidade_esperada = int(inicio[1])
             except ValueError as exc:
-                raise ErroProtocolo(
-                    "quantidade inválida em LIST_BEGIN"
-                ) from exc
+                raise ErroProtocolo("quantidade inválida em LIST_BEGIN") from exc
 
             if quantidade_esperada < 0:
-                raise ErroProtocolo(
-                    "LIST_BEGIN não pode anunciar quantidade negativa"
-                )
+                raise ErroProtocolo("LIST_BEGIN não pode anunciar quantidade negativa")
 
             recebidos: list[LoteCliente] = []
 
@@ -279,7 +248,8 @@ class ClienteLeilao:
                     geracao,
                     lambda p: (
                         bool(p)
-                        and p[0] in {
+                        and p[0]
+                        in {
                             "LOT",
                             "LIST_END",
                         }
@@ -305,16 +275,11 @@ class ClienteLeilao:
                 for lote in recebidos:
                     self._lotes[lote.id] = lote
 
-            resultado = [
-                replace(lote)
-                for lote in recebidos
-            ]
+            resultado = [replace(lote) for lote in recebidos]
 
             if apenas_ativos:
                 resultado = [
-                    lote
-                    for lote in resultado
-                    if lote.status is StatusLote.OPEN
+                    lote for lote in resultado if lote.status is StatusLote.OPEN
                 ]
 
             return resultado
@@ -326,9 +291,7 @@ class ClienteLeilao:
         """Executa JOIN e registra a inscrição para futuras reconexões."""
 
         if lote_id < 0:
-            raise ValueError(
-                "lote_id deve ser não negativo"
-            )
+            raise ValueError("lote_id deve ser não negativo")
 
         # Guardamos a intenção antes do envio porque a conexão pode cair
         # exatamente depois de o servidor receber JOIN.
@@ -336,15 +299,14 @@ class ClienteLeilao:
             self._joins_desejados.add(lote_id)
 
         with self._command_lock:
-            geracao = self._enviar_linha(
-                f"JOIN {lote_id}"
-            )
+            geracao = self._enviar_linha(f"JOIN {lote_id}")
 
             resposta = self._esperar(
                 geracao,
                 lambda p: (
                     len(p) >= 2
-                    and p[0] in {
+                    and p[0]
+                    in {
                         "JOIN_OK",
                         "JOIN_REJECTED",
                     }
@@ -353,16 +315,10 @@ class ClienteLeilao:
             )
 
         if resposta[0] == "JOIN_REJECTED":
-            motivo = (
-                resposta[2]
-                if len(resposta) >= 3
-                else "RESPOSTA_MALFORMADA"
-            )
+            motivo = resposta[2] if len(resposta) >= 3 else "RESPOSTA_MALFORMADA"
 
             with self._state_lock:
-                self._joins_desejados.discard(
-                    lote_id
-                )
+                self._joins_desejados.discard(lote_id)
 
             raise OperacaoRejeitada(
                 "JOIN",
@@ -387,10 +343,7 @@ class ClienteLeilao:
 
         with self._state_lock:
             if lote_id not in self._joins_desejados:
-                raise ErroCliente(
-                    "é necessário executar JOIN "
-                    "antes de enviar BID"
-                )
+                raise ErroCliente("é necessário executar JOIN antes de enviar BID")
 
         with self._command_lock:
             geracao, seq = self._enviar_bid_assinado(
@@ -403,7 +356,8 @@ class ClienteLeilao:
                     geracao,
                     lambda p: (
                         len(p) >= 2
-                        and p[0] in {
+                        and p[0]
+                        in {
                             "BID_ACCEPTED",
                             "BID_REJECTED",
                         }
@@ -416,9 +370,7 @@ class ClienteLeilao:
                 # O servidor pode ter aceitado o BID e a resposta ter se
                 # perdido. Fechamos a sessão para que uma resposta atrasada
                 # com o mesmo seq não seja confundida com outro BID.
-                self._marcar_desconectado(
-                    self._socket_atual()
-                )
+                self._marcar_desconectado(self._socket_atual())
 
                 raise ResultadoLanceIndeterminado(
                     "o BID foi enviado, mas a resposta não chegou "
@@ -433,11 +385,7 @@ class ClienteLeilao:
                 ) from exc
 
         if resposta[0] == "BID_REJECTED":
-            motivo = (
-                resposta[2]
-                if len(resposta) >= 4
-                else "RESPOSTA_MALFORMADA"
-            )
+            motivo = resposta[2] if len(resposta) >= 4 else "RESPOSTA_MALFORMADA"
 
             # Seq NÃO avança em rejeição.
             raise OperacaoRejeitada(
@@ -446,26 +394,18 @@ class ClienteLeilao:
             )
 
         if len(resposta) != 5:
-            raise ErroProtocolo(
-                "BID_ACCEPTED malformado"
-            )
+            raise ErroProtocolo("BID_ACCEPTED malformado")
 
         try:
-            preco_aceito = Decimal(
-                resposta[2]
-            )
+            preco_aceito = Decimal(resposta[2])
 
-            tempo_fim = int(
-                resposta[3]
-            )
+            tempo_fim = int(resposta[3])
 
         except (
             InvalidOperation,
             ValueError,
         ) as exc:
-            raise ErroProtocolo(
-                "BID_ACCEPTED contém valores inválidos"
-            ) from exc
+            raise ErroProtocolo("BID_ACCEPTED contém valores inválidos") from exc
 
         with self._state_lock:
             # Somente um BID aceito incrementa seq.
@@ -476,9 +416,7 @@ class ClienteLeilao:
             if self._generation == geracao:
                 self._proximo_seq = seq + 1
 
-            lote = self._lotes.get(
-                lote_id
-            )
+            lote = self._lotes.get(lote_id)
 
             if lote is None:
                 lote = LoteCliente(
@@ -503,10 +441,7 @@ class ClienteLeilao:
         """Devolve cópias do estado local conhecido."""
 
         with self._state_lock:
-            return [
-                replace(lote)
-                for lote in self._lotes.values()
-            ]
+            return [replace(lote) for lote in self._lotes.values()]
 
     # ------------------------------------------------------------------
     # Conexão e autenticação
@@ -523,9 +458,7 @@ class ClienteLeilao:
         )
 
         try:
-            sock.settimeout(
-                self.config.timeout_conexao
-            )
+            sock.settimeout(self.config.timeout_conexao)
 
             sock.connect(
                 (
@@ -534,20 +467,12 @@ class ClienteLeilao:
                 )
             )
 
-            sock.settimeout(
-                self.config.timeout_resposta
-            )
+            sock.settimeout(self.config.timeout_resposta)
 
-            buffer = LineBuffer(
-                self.config.tamanho_maximo_linha
-            )
+            buffer = LineBuffer(self.config.tamanho_maximo_linha)
 
             # Etapa 1: LOGIN
-            sock.sendall(
-                (
-                    f"LOGIN {self.username}\n"
-                ).encode("utf-8")
-            )
+            sock.sendall((f"LOGIN {self.username}\n").encode("utf-8"))
 
             partes = ler_mensagem(
                 self._receber_linha_sincrona(
@@ -556,27 +481,13 @@ class ClienteLeilao:
                 )
             )
 
-            if (
-                partes
-                and partes[0] == "AUTH_FAIL"
-            ):
-                motivo = (
-                    partes[1]
-                    if len(partes) > 1
-                    else "DESCONHECIDO"
-                )
+            if partes and partes[0] == "AUTH_FAIL":
+                motivo = partes[1] if len(partes) > 1 else "DESCONHECIDO"
 
-                raise ErroAutenticacao(
-                    f"LOGIN recusado: {motivo}"
-                )
+                raise ErroAutenticacao(f"LOGIN recusado: {motivo}")
 
-            if (
-                len(partes) != 2
-                or partes[0] != "CHALLENGE"
-            ):
-                raise ErroProtocolo(
-                    "esperado CHALLENGE após LOGIN"
-                )
+            if len(partes) != 2 or partes[0] != "CHALLENGE":
+                raise ErroProtocolo("esperado CHALLENGE após LOGIN")
 
             nonce = partes[1]
             validar_nonce(nonce)
@@ -587,11 +498,7 @@ class ClienteLeilao:
                 nonce,
             )
 
-            sock.sendall(
-                (
-                    f"AUTH {mac}\n"
-                ).encode("utf-8")
-            )
+            sock.sendall((f"AUTH {mac}\n").encode("utf-8"))
 
             partes = ler_mensagem(
                 self._receber_linha_sincrona(
@@ -600,32 +507,16 @@ class ClienteLeilao:
                 )
             )
 
-            if (
-                partes
-                and partes[0] == "AUTH_FAIL"
-            ):
-                motivo = (
-                    partes[1]
-                    if len(partes) > 1
-                    else "DESCONHECIDO"
-                )
+            if partes and partes[0] == "AUTH_FAIL":
+                motivo = partes[1] if len(partes) > 1 else "DESCONHECIDO"
 
-                raise ErroAutenticacao(
-                    f"AUTH recusado: {motivo}"
-                )
+                raise ErroAutenticacao(f"AUTH recusado: {motivo}")
 
-            if (
-                len(partes) != 2
-                or partes[0] != "AUTH_OK"
-            ):
-                raise ErroProtocolo(
-                    "esperado AUTH_OK após AUTH"
-                )
+            if len(partes) != 2 or partes[0] != "AUTH_OK":
+                raise ErroProtocolo("esperado AUTH_OK após AUTH")
 
             if partes[1] != self.username:
-                raise ErroProtocolo(
-                    "AUTH_OK retornou username inesperado"
-                )
+                raise ErroProtocolo("AUTH_OK retornou username inesperado")
 
             # Timeout curto apenas para que a thread de recepção
             # consiga verificar periodicamente _stop.
@@ -649,38 +540,24 @@ class ClienteLeilao:
     ) -> str:
         """Recebe uma linha durante o pequeno handshake inicial."""
 
-        fim = (
-            time.monotonic()
-            + self.config.timeout_resposta
-        )
+        fim = time.monotonic() + self.config.timeout_resposta
 
         while True:
-            restante = (
-                fim - time.monotonic()
-            )
+            restante = fim - time.monotonic()
 
             if restante <= 0:
-                raise TimeoutResposta(
-                    "timeout durante autenticação"
-                )
+                raise TimeoutResposta("timeout durante autenticação")
 
             sock.settimeout(restante)
 
             try:
-                data = sock.recv(
-                    self.config.tamanho_recv
-                )
+                data = sock.recv(self.config.tamanho_recv)
 
             except socket.timeout as exc:
-                raise TimeoutResposta(
-                    "timeout durante autenticação"
-                ) from exc
+                raise TimeoutResposta("timeout durante autenticação") from exc
 
             if not data:
-                raise ConexaoPerdida(
-                    "servidor fechou a conexão "
-                    "durante autenticação"
-                )
+                raise ConexaoPerdida("servidor fechou a conexão durante autenticação")
 
             linhas = buffer.feed(data)
 
@@ -713,33 +590,19 @@ class ClienteLeilao:
             self._generation += 1
             geracao = self._generation
 
-            joins = (
-                sorted(self._joins_desejados)
-                if reenviar_joins
-                else []
-            )
+            joins = sorted(self._joins_desejados) if reenviar_joins else []
 
-            self._auto_joins_pendentes = set(
-                joins
-            )
+            self._auto_joins_pendentes = set(joins)
 
         try:
             with self._send_lock:
                 for lote_id in joins:
-                    sock.sendall(
-                        (
-                            f"JOIN {lote_id}\n"
-                        ).encode("utf-8")
-                    )
+                    sock.sendall((f"JOIN {lote_id}\n").encode("utf-8"))
 
         except OSError as exc:
-            self._marcar_desconectado(
-                sock
-            )
+            self._marcar_desconectado(sock)
 
-            raise ConexaoPerdida(
-                "falha ao restaurar inscrições"
-            ) from exc
+            raise ConexaoPerdida("falha ao restaurar inscrições") from exc
 
         self._connected.set()
 
@@ -749,10 +612,7 @@ class ClienteLeilao:
         if reenviar_joins:
             self._emitir(
                 "reconectado",
-                (
-                    f"sessão {geracao} autenticada; "
-                    f"{len(joins)} JOIN(s) reenviado(s)"
-                ),
+                (f"sessão {geracao} autenticada; {len(joins)} JOIN(s) reenviado(s)"),
             )
 
     def _socket_atual(
@@ -772,22 +632,14 @@ class ClienteLeilao:
         """
 
         if "\n" in linha or "\r" in linha:
-            raise ValueError(
-                "linha de protocolo não pode conter CR/LF"
-            )
+            raise ValueError("linha de protocolo não pode conter CR/LF")
 
         if aguardar_conexao:
-            if not self._connected.wait(
-                self.config.timeout_conexao
-            ):
-                raise ConexaoPerdida(
-                    "cliente não está conectado"
-                )
+            if not self._connected.wait(self.config.timeout_conexao):
+                raise ConexaoPerdida("cliente não está conectado")
 
         elif not self._connected.is_set():
-            raise ConexaoPerdida(
-                "cliente não está conectado"
-            )
+            raise ConexaoPerdida("cliente não está conectado")
 
         with self._send_lock:
             with self._sock_lock:
@@ -795,27 +647,17 @@ class ClienteLeilao:
                 geracao = self._generation
 
             if sock is None:
-                raise ConexaoPerdida(
-                    "socket indisponível"
-                )
+                raise ConexaoPerdida("socket indisponível")
 
             try:
-                sock.sendall(
-                    (
-                        linha + "\n"
-                    ).encode("utf-8")
-                )
+                sock.sendall((linha + "\n").encode("utf-8"))
 
                 return geracao
 
             except OSError as exc:
-                self._marcar_desconectado(
-                    sock
-                )
+                self._marcar_desconectado(sock)
 
-                raise ConexaoPerdida(
-                    "falha ao enviar dados"
-                ) from exc
+                raise ConexaoPerdida("falha ao enviar dados") from exc
 
     def _enviar_bid_assinado(
         self,
@@ -824,12 +666,8 @@ class ClienteLeilao:
     ) -> tuple[int, int]:
         """Obtém nonce/seq atomicamente e envia BID assinado."""
 
-        if not self._connected.wait(
-            self.config.timeout_conexao
-        ):
-            raise ConexaoPerdida(
-                "cliente não está conectado"
-            )
+        if not self._connected.wait(self.config.timeout_conexao):
+            raise ConexaoPerdida("cliente não está conectado")
 
         with self._send_lock:
             with (
@@ -841,13 +679,8 @@ class ClienteLeilao:
                 nonce = self._nonce
                 seq = self._proximo_seq
 
-            if (
-                sock is None
-                or nonce is None
-            ):
-                raise ConexaoPerdida(
-                    "sessão autenticada indisponível"
-                )
+            if sock is None or nonce is None:
+                raise ConexaoPerdida("sessão autenticada indisponível")
 
             texto = texto_assinado_lance(
                 lote_id,
@@ -861,29 +694,19 @@ class ClienteLeilao:
                 texto,
             )
 
-            linha = (
-                f"BID {lote_id} "
-                f"{preco_enviado} "
-                f"{seq} "
-                f"{mac}\n"
-            )
+            linha = f"BID {lote_id} {preco_enviado} {seq} {mac}\n"
 
             try:
-                sock.sendall(
-                    linha.encode("utf-8")
-                )
+                sock.sendall(linha.encode("utf-8"))
 
             except OSError as exc:
-                self._marcar_desconectado(
-                    sock
-                )
+                self._marcar_desconectado(sock)
 
                 # Como sendall falhou depois de iniciada a operação,
                 # não podemos provar se zero, parte ou todos os bytes
                 # chegaram ao outro lado.
                 raise ResultadoLanceIndeterminado(
-                    "falha de transporte durante "
-                    "o envio do BID"
+                    "falha de transporte durante o envio do BID"
                 ) from exc
 
         return geracao, seq
@@ -895,20 +718,15 @@ class ClienteLeilao:
     def _loop_receber(self) -> None:
         """Único consumidor de recv() depois da autenticação."""
 
-        buffer = LineBuffer(
-            self.config.tamanho_maximo_linha
-        )
+        buffer = LineBuffer(self.config.tamanho_maximo_linha)
 
         while not self._stop.is_set():
-
             if not self._connected.is_set():
                 if not self._reconectar():
                     return
 
                 # Nova conexão = novo fluxo TCP.
-                buffer = LineBuffer(
-                    self.config.tamanho_maximo_linha
-                )
+                buffer = LineBuffer(self.config.tamanho_maximo_linha)
 
             sock = self._socket_atual()
 
@@ -917,26 +735,18 @@ class ClienteLeilao:
                 continue
 
             try:
-                data = sock.recv(
-                    self.config.tamanho_recv
-                )
+                data = sock.recv(self.config.tamanho_recv)
 
                 if not data:
-                    raise ConexaoPerdida(
-                        "servidor fechou a conexão"
-                    )
+                    raise ConexaoPerdida("servidor fechou a conexão")
 
                 linhas = buffer.feed(data)
 
                 for linha in linhas:
-                    partes = ler_mensagem(
-                        linha
-                    )
+                    partes = ler_mensagem(linha)
 
                     if partes:
-                        self._tratar_mensagem(
-                            partes
-                        )
+                        self._tratar_mensagem(partes)
 
             except socket.timeout:
                 # Timeout local de 1 segundo.
@@ -959,34 +769,24 @@ class ClienteLeilao:
                     emitir=False,
                 )
 
-                buffer = LineBuffer(
-                    self.config.tamanho_maximo_linha
-                )
+                buffer = LineBuffer(self.config.tamanho_maximo_linha)
 
     def _reconectar(self) -> bool:
         """Reconecta com backoff exponencial limitado."""
 
-        atraso = (
-            self.config.atraso_reconexao_inicial
-        )
+        atraso = self.config.atraso_reconexao_inicial
 
         while not self._stop.is_set():
-
             self._emitir(
                 "reconectando",
-                (
-                    "tentando reconectar em "
-                    f"{atraso:.1f}s"
-                ),
+                (f"tentando reconectar em {atraso:.1f}s"),
             )
 
             if self._stop.wait(atraso):
                 return False
 
             try:
-                sock, nonce = (
-                    self._abrir_e_autenticar()
-                )
+                sock, nonce = self._abrir_e_autenticar()
 
                 self._instalar_socket(
                     sock,
@@ -1016,16 +816,12 @@ class ClienteLeilao:
     def _loop_keepalive(self) -> None:
         """Mantém tráfego abaixo do timeout de 40 s do servidor."""
 
-        while not self._stop.wait(
-            self.config.intervalo_keepalive
-        ):
+        while not self._stop.wait(self.config.intervalo_keepalive):
             if not self._connected.is_set():
                 continue
 
             try:
-                self._enviar_linha(
-                    "KEEPALIVE"
-                )
+                self._enviar_linha("KEEPALIVE")
 
             except ErroCliente:
                 # A thread de recepção detectará ou já detectou
@@ -1084,21 +880,15 @@ class ClienteLeilao:
             return
 
         if comando == "PRICE_UPDATE":
-            self._tratar_price_update(
-                partes
-            )
+            self._tratar_price_update(partes)
             return
 
         if comando == "TIME_UPDATE":
-            self._tratar_time_update(
-                partes
-            )
+            self._tratar_time_update(partes)
             return
 
         if comando == "CLOSE":
-            self._tratar_close(
-                partes
-            )
+            self._tratar_close(partes)
             return
 
         # JOINs executados automaticamente durante reconexão não devem ficar
@@ -1112,62 +902,38 @@ class ClienteLeilao:
             and len(partes) >= 2
         ):
             try:
-                lote_id = int(
-                    partes[1]
-                )
+                lote_id = int(partes[1])
             except ValueError:
                 lote_id = -1
 
             with self._state_lock:
-                automatico = (
-                    lote_id
-                    in self._auto_joins_pendentes
-                )
+                automatico = lote_id in self._auto_joins_pendentes
 
                 if automatico:
-                    self._auto_joins_pendentes.discard(
-                        lote_id
-                    )
+                    self._auto_joins_pendentes.discard(lote_id)
 
             if automatico:
                 if comando == "JOIN_OK":
-                    lote = self._parse_join_ok(
-                        partes
-                    )
+                    lote = self._parse_join_ok(partes)
 
                     with self._state_lock:
-                        self._lotes[
-                            lote.id
-                        ] = lote
+                        self._lotes[lote.id] = lote
 
                     self._emitir(
                         "reinscrito",
-                        (
-                            "JOIN restaurado para "
-                            f"o lote {lote.id}"
-                        ),
+                        (f"JOIN restaurado para o lote {lote.id}"),
                         lote_id=lote.id,
                     )
 
                 else:
-                    motivo = (
-                        partes[2]
-                        if len(partes) >= 3
-                        else "DESCONHECIDO"
-                    )
+                    motivo = partes[2] if len(partes) >= 3 else "DESCONHECIDO"
 
                     with self._state_lock:
-                        self._joins_desejados.discard(
-                            lote_id
-                        )
+                        self._joins_desejados.discard(lote_id)
 
                     self._emitir(
                         "reinscricao_falhou",
-                        (
-                            f"JOIN {lote_id} recusado "
-                            "após reconexão: "
-                            f"{motivo}"
-                        ),
+                        (f"JOIN {lote_id} recusado após reconexão: {motivo}"),
                         lote_id=lote_id,
                     )
 
@@ -1193,10 +959,7 @@ class ClienteLeilao:
         # comando desconhecido é ignorado e informado à interface.
         self._emitir(
             "protocolo",
-            (
-                "mensagem desconhecida "
-                f"ignorada: {comando}"
-            ),
+            (f"mensagem desconhecida ignorada: {comando}"),
         )
 
     def _esperar(
@@ -1209,67 +972,40 @@ class ClienteLeilao:
     ) -> list[str]:
         """Aguarda uma resposta específica da sessão indicada."""
 
-        fim = (
-            time.monotonic()
-            + self.config.timeout_resposta
-        )
+        fim = time.monotonic() + self.config.timeout_resposta
 
         with self._inbox_cv:
             while True:
-
                 for indice, (
                     gen,
                     partes,
                 ) in enumerate(self._inbox):
-
-                    if (
-                        gen == geracao
-                        and predicado(partes)
-                    ):
+                    if gen == geracao and predicado(partes):
                         # deque não fornece pop(indice).
                         # Rotate remove apenas o item encontrado
                         # sem destruir a ordem dos demais.
-                        self._inbox.rotate(
-                            -indice
-                        )
+                        self._inbox.rotate(-indice)
 
-                        _, resposta = (
-                            self._inbox.popleft()
-                        )
+                        _, resposta = self._inbox.popleft()
 
-                        self._inbox.rotate(
-                            indice
-                        )
+                        self._inbox.rotate(indice)
 
                         return resposta
 
                 with self._sock_lock:
-                    geracao_atual = (
-                        self._generation
-                    )
+                    geracao_atual = self._generation
 
-                if (
-                    geracao_atual != geracao
-                    or not self._connected.is_set()
-                ):
+                if geracao_atual != geracao or not self._connected.is_set():
                     raise ConexaoPerdida(
-                        "a conexão mudou enquanto "
-                        "a resposta era aguardada"
+                        "a conexão mudou enquanto a resposta era aguardada"
                     )
 
-                restante = (
-                    fim - time.monotonic()
-                )
+                restante = fim - time.monotonic()
 
                 if restante <= 0:
-                    raise TimeoutResposta(
-                        "servidor não respondeu "
-                        "dentro do prazo"
-                    )
+                    raise TimeoutResposta("servidor não respondeu dentro do prazo")
 
-                self._inbox_cv.wait(
-                    restante
-                )
+                self._inbox_cv.wait(restante)
 
     # ------------------------------------------------------------------
     # Parsers das mensagens do leilão
@@ -1279,13 +1015,8 @@ class ClienteLeilao:
         self,
         partes: list[str],
     ) -> LoteCliente:
-        if (
-            len(partes) != 6
-            or partes[0] != "LOT"
-        ):
-            raise ErroProtocolo(
-                "LOT malformado"
-            )
+        if len(partes) != 6 or partes[0] != "LOT":
+            raise ErroProtocolo("LOT malformado")
 
         return self._montar_lote(
             partes[1],
@@ -1299,13 +1030,8 @@ class ClienteLeilao:
         self,
         partes: list[str],
     ) -> LoteCliente:
-        if (
-            len(partes) != 6
-            or partes[0] != "JOIN_OK"
-        ):
-            raise ErroProtocolo(
-                "JOIN_OK malformado"
-            )
+        if len(partes) != 6 or partes[0] != "JOIN_OK":
+            raise ErroProtocolo("JOIN_OK malformado")
 
         return self._montar_lote(
             partes[1],
@@ -1325,32 +1051,18 @@ class ClienteLeilao:
     ) -> LoteCliente:
         try:
             lote_id = int(id_s)
-            status = StatusLote(
-                status_s
-            )
-            preco = Decimal(
-                preco_s
-            )
-            epoch = int(
-                epoch_s
-            )
+            status = StatusLote(status_s)
+            preco = Decimal(preco_s)
+            epoch = int(epoch_s)
 
         except (
             ValueError,
             InvalidOperation,
         ) as exc:
-            raise ErroProtocolo(
-                "dados de lote inválidos"
-            ) from exc
+            raise ErroProtocolo("dados de lote inválidos") from exc
 
-        if (
-            lote_id < 0
-            or not preco.is_finite()
-            or preco < 0
-        ):
-            raise ErroProtocolo(
-                "dados de lote fora da faixa válida"
-            )
+        if lote_id < 0 or not preco.is_finite() or preco < 0:
+            raise ErroProtocolo("dados de lote fora da faixa válida")
 
         return LoteCliente(
             id=lote_id,
@@ -1379,23 +1091,15 @@ class ClienteLeilao:
             4,
             5,
         }:
-            raise ErroProtocolo(
-                "PRICE_UPDATE malformado"
-            )
+            raise ErroProtocolo("PRICE_UPDATE malformado")
 
         try:
-            lote_id = int(
-                partes[1]
-            )
+            lote_id = int(partes[1])
 
-            preco = Decimal(
-                partes[2]
-            )
+            preco = Decimal(partes[2])
 
             if len(partes) == 5:
-                epoch: int | None = int(
-                    partes[3]
-                )
+                epoch: int | None = int(partes[3])
                 usuario = partes[4]
 
             else:
@@ -1406,23 +1110,13 @@ class ClienteLeilao:
             ValueError,
             InvalidOperation,
         ) as exc:
-            raise ErroProtocolo(
-                "PRICE_UPDATE contém "
-                "valores inválidos"
-            ) from exc
+            raise ErroProtocolo("PRICE_UPDATE contém valores inválidos") from exc
 
-        if (
-            not preco.is_finite()
-            or preco < 0
-        ):
-            raise ErroProtocolo(
-                "PRICE_UPDATE contém preço inválido"
-            )
+        if not preco.is_finite() or preco < 0:
+            raise ErroProtocolo("PRICE_UPDATE contém preço inválido")
 
         with self._state_lock:
-            lote = self._lotes.get(
-                lote_id
-            )
+            lote = self._lotes.get(lote_id)
 
             if lote is not None:
                 lote.preco_atual = preco
@@ -1434,11 +1128,7 @@ class ClienteLeilao:
 
         self._emitir(
             "preco",
-            (
-                f"lote {lote_id}: "
-                f"novo preço {preco:.2f} "
-                f"por {usuario}"
-            ),
+            (f"lote {lote_id}: novo preço {preco:.2f} por {usuario}"),
             lote_id=lote_id,
             preco=preco,
             tempo_fim=epoch,
@@ -1450,40 +1140,25 @@ class ClienteLeilao:
         partes: list[str],
     ) -> None:
         if len(partes) != 3:
-            raise ErroProtocolo(
-                "TIME_UPDATE malformado"
-            )
+            raise ErroProtocolo("TIME_UPDATE malformado")
 
         try:
-            lote_id = int(
-                partes[1]
-            )
+            lote_id = int(partes[1])
 
-            epoch = int(
-                partes[2]
-            )
+            epoch = int(partes[2])
 
         except ValueError as exc:
-            raise ErroProtocolo(
-                "TIME_UPDATE contém "
-                "valores inválidos"
-            ) from exc
+            raise ErroProtocolo("TIME_UPDATE contém valores inválidos") from exc
 
         with self._state_lock:
-            lote = self._lotes.get(
-                lote_id
-            )
+            lote = self._lotes.get(lote_id)
 
             if lote is not None:
                 lote.tempo_fim = epoch
 
         self._emitir(
             "tempo",
-            (
-                f"lote {lote_id}: "
-                f"término atualizado "
-                f"para epoch {epoch}"
-            ),
+            (f"lote {lote_id}: término atualizado para epoch {epoch}"),
             lote_id=lote_id,
             tempo_fim=epoch,
         )
@@ -1493,61 +1168,36 @@ class ClienteLeilao:
         partes: list[str],
     ) -> None:
         if len(partes) != 4:
-            raise ErroProtocolo(
-                "CLOSE malformado"
-            )
+            raise ErroProtocolo("CLOSE malformado")
 
         try:
-            lote_id = int(
-                partes[1]
-            )
+            lote_id = int(partes[1])
 
-            preco = Decimal(
-                partes[2]
-            )
+            preco = Decimal(partes[2])
 
         except (
             ValueError,
             InvalidOperation,
         ) as exc:
-            raise ErroProtocolo(
-                "CLOSE contém valores inválidos"
-            ) from exc
+            raise ErroProtocolo("CLOSE contém valores inválidos") from exc
 
-        if (
-            not preco.is_finite()
-            or preco < 0
-        ):
-            raise ErroProtocolo(
-                "CLOSE contém preço inválido"
-            )
+        if not preco.is_finite() or preco < 0:
+            raise ErroProtocolo("CLOSE contém preço inválido")
 
         vencedor = partes[3]
 
         with self._state_lock:
-            lote = self._lotes.get(
-                lote_id
-            )
+            lote = self._lotes.get(lote_id)
 
             if lote is not None:
                 lote.preco_atual = preco
-                lote.status = (
-                    StatusLote.CLOSED
-                )
+                lote.status = StatusLote.CLOSED
 
-                lote.lider_atual = (
-                    None
-                    if vencedor == "NONE"
-                    else vencedor
-                )
+                lote.lider_atual = None if vencedor == "NONE" else vencedor
 
         self._emitir(
             "fechado",
-            (
-                f"lote {lote_id} fechado "
-                f"em {preco:.2f}; "
-                f"vencedor: {vencedor}"
-            ),
+            (f"lote {lote_id} fechado em {preco:.2f}; vencedor: {vencedor}"),
             lote_id=lote_id,
             preco=preco,
             usuario=vencedor,
@@ -1579,4 +1229,3 @@ class ClienteLeilao:
         except Exception:
             # Erros de impressão/UI não podem matar a thread receptora.
             pass
-

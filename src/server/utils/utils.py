@@ -43,7 +43,7 @@ def carregar_lotes(caminho: str) -> dict:
             parts = [p.strip() for p in linha.split("|")]
 
             if len(parts) >= 4:
-                lote_id = parts[0]
+                lote_id = int(parts[0])
                 descricao = parts[1]
                 preco_inicio = float(parts[2])
                 duracao_segundos = int(parts[3])
@@ -178,7 +178,7 @@ def comando_lance(sessao: Sessao, partes: list, lotes: dict, chaves: dict) -> No
 
         # Um lance nos últimos 10 segundos estende o leilão para evitar um
         # encerramento abrupto.
-        if agora - tempo_fim_anterior < JANELA_DE_TEMPO_SEGUNDOS:
+        if tempo_fim_anterior - agora < JANELA_DE_TEMPO_SEGUNDOS:
             lote.tempo_fim = agora + JANELA_DE_TEMPO_SEGUNDOS
 
         inscritos_para_notificar = list(lote.inscritos)
