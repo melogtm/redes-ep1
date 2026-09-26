@@ -93,10 +93,11 @@ def lidar_com_cliente(
                 elif comando == "JOIN":
                     comando_entrar(sessao, partes, lotes)
                 elif comando == "AUTH":
+                    # O nonce já foi consumido no login: um novo AUTH sempre
+                    # recebe NONCE_EXPIRED e a conexão é fechada.
                     comando_autenticar(sessao, partes, chaves)
-                    if not sessao.autenticado:
-                        motivo = "autenticação recusada"
-                        return
+                    motivo = "AUTH repetido após o login"
+                    return
     finally:
         for lote in lotes.values():
             with lote.lock:
