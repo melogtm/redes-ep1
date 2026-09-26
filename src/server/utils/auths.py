@@ -1,3 +1,5 @@
+"""Autenticação por desafio e resposta: LOGIN e AUTH."""
+
 import hmac
 import logging
 import secrets
@@ -12,6 +14,7 @@ log = logging.getLogger("servidor")
 
 
 def comando_login(sessao: Sessao, partes: list, chaves: dict) -> None:
+    """Responde LOGIN com um CHALLENGE, ou recusa e fecha se o usuário não existe."""
 
     if len(partes) < 2:
         log.info("%s: LOGIN sem usuário -> AUTH_FAIL UNKNOWN_USER", sessao)
@@ -36,6 +39,10 @@ def comando_login(sessao: Sessao, partes: list, chaves: dict) -> None:
 
 
 def comando_autenticar(sessao: Sessao, partes: list, chaves: dict) -> None:
+    """Confere o HMAC-SHA256 do nonce enviado em AUTH.
+
+    O nonce vale para uma única tentativa: com o MAC errado, a conexão é fechada.
+    """
     if sessao.username is None:
         log.info("%s: AUTH antes de LOGIN -> AUTH_FAIL UNKNOWN_USER", sessao)
         enviar_mensagem(sessao.conn, "AUTH_FAIL UNKNOWN_USER\n")

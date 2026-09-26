@@ -1,7 +1,11 @@
+"""Estado de uma conexão de cliente no servidor."""
+
 import socket
 
 
 class Sessao:
+    """Autenticação, nonce, próximo seq e lotes inscritos de uma conexão."""
+
     def __init__(self, conn: socket.socket, endereco: tuple[str, int]):
         self.conn = conn
         self.endereco = endereco

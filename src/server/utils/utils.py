@@ -1,3 +1,9 @@
+"""Lógica central do leilão.
+
+Carga dos arquivos de chaves e lotes, os comandos LIST, JOIN e BID, o envio
+das notificações e a thread que fecha os lotes.
+"""
+
 import hmac
 import logging
 import socket
@@ -16,14 +22,17 @@ log = logging.getLogger("servidor")
 
 
 def hora(epoch: float) -> str:
+    """Formata um epoch como HH:MM:SS para os logs."""
     return time.strftime("%H:%M:%S", time.localtime(epoch))
 
 
 def nomes(inscritos: list) -> str:
+    """Lista, para os logs, os usuários de uma lista de pares (conexão, usuário)."""
     return ", ".join(sorted(username for _, username in inscritos))
 
 
 def carregar_chaves(caminho: str) -> dict:
+    """Lê o arquivo de chaves, com uma linha 'usuario chave' por usuário."""
     chaves = {}
 
     with open(caminho, "r", encoding="utf-8") as arquivo:
@@ -42,6 +51,10 @@ def carregar_chaves(caminho: str) -> dict:
 
 
 def carregar_lotes(caminho: str) -> dict:
+    """Lê o arquivo de lotes: 'id | descrição | preço inicial | duração em s'.
+
+    A duração conta a partir desta leitura, ou seja, da subida do servidor.
+    """
     lotes = {}
 
     with open(caminho, "r", encoding="utf-8") as arquivo:
@@ -67,6 +80,11 @@ def carregar_lotes(caminho: str) -> dict:
 
 
 def enviar_mensagem(conn: socket.socket, mensagem: str) -> None:
+    """Envia uma mensagem, ignorando erros de rede.
+
+    Uma conexão que caiu é detectada pela thread que a atende, na próxima
+    leitura; quem envia uma notificação para vários inscritos não trata isso.
+    """
     if log.isEnabledFor(logging.DEBUG):
         try:
             ip, porta = conn.getpeername()[:2]
@@ -82,6 +100,7 @@ def enviar_mensagem(conn: socket.socket, mensagem: str) -> None:
 
 
 def fechar_conexao(conn: socket.socket) -> None:
+    """Fecha o socket, ignorando o erro se ele já estiver fechado."""
     try:
         conn.close()
     except OSError:
@@ -89,6 +108,7 @@ def fechar_conexao(conn: socket.socket) -> None:
 
 
 def comando_listar(sessao: Sessao, lotes: dict) -> None:
+    """Responde LIST com LIST_BEGIN, uma linha LOT por lote e LIST_END."""
     enviar_mensagem(sessao.conn, f"LIST_BEGIN {len(lotes)}\n")
 
     for lote in lotes.values():
@@ -102,6 +122,10 @@ def comando_listar(sessao: Sessao, lotes: dict) -> None:
 
 
 def comando_entrar(sessao: Sessao, partes: list, lotes: dict) -> None:
+    """Inscreve a sessão no lote e responde JOIN_OK com o estado atual.
+
+    A partir daí a sessão recebe os PRICE_UPDATE, TIME_UPDATE e CLOSE do lote.
+    """
 
     if len(partes) < 2:
         enviar_mensagem(sessao.conn, "JOIN_REJECTED -1 BAD_REQUEST\n")
@@ -144,11 +168,22 @@ def comando_entrar(sessao: Sessao, partes: list, lotes: dict) -> None:
 
 
 def rejeitar_lance(sessao: Sessao, lote_id: int, motivo: str, seq: int) -> None:
+    """Registra no log e envia BID_REJECTED com o motivo."""
     log.info("%s: BID no lote %d -> BID_REJECTED %s", sessao, lote_id, motivo)
     enviar_mensagem(sessao.conn, f"BID_REJECTED {lote_id} {motivo} {seq}\n")
 
 
 def comando_lance(sessao: Sessao, partes: list, lotes: dict, chaves: dict) -> None:
+    """Valida um BID e, se aceito, atualiza o lote e notifica os inscritos.
+
+    Checagens, nesta ordem: lote existe (NO_SUCH_LOT), sessão inscrita
+    (NOT_JOINED), seq esperado (BAD_SEQ) e HMAC (BAD_MAC); depois, dentro do
+    lock do lote, lote aberto (CLOSED) e preço maior que o atual (LOW_BID).
+    Um BID com campos faltando ou inválidos é ignorado, sem resposta.
+
+    As notificações saem ainda dentro do lock, para que os inscritos as
+    recebam na mesma ordem em que os lances foram aceitos.
+    """
     if len(partes) < 5:
         log.info("%s: BID malformado ignorado", sessao)
         return
@@ -255,6 +290,7 @@ def comando_lance(sessao: Sessao, partes: list, lotes: dict, chaves: dict) -> No
 
 
 def monitorar_lote_fechamento(lotes: dict) -> None:
+    """Fecha os lotes que passaram do término e envia CLOSE aos inscritos."""
     while True:
         # A frequência define a precisão máxima do fechamento automático.
         time.sleep(TEMPO_MONITORAMENTO_SEGUNDOS)
