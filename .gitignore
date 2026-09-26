@@ -1,5 +1,11 @@
+# Python
 __pycache__/
 *.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# Chaves extras geradas localmente (o keys.conf do EP vai versionado)
 *.keyfile
 !*.keyfile.example
 
