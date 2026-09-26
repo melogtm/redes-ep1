@@ -21,8 +21,9 @@ por `python` (ou `py`).
 Desligar a VPN (Mullvad), ou ligar "Local network sharing".
 
 ```bash
-git clone https://github.com/melogtm/redes-ep1.git   # ou, se já tiver: git pull
+git clone https://github.com/melogtm/redes-ep1.git   # se ainda não tiver
 cd redes-ep1
+git fetch && git switch bateria/preparacao
 python3 --version                                    # 3.10 ou mais
 ```
 
@@ -42,15 +43,17 @@ Se falhar, é firewall da M1: `sudo firewall-cmd --add-port=8080/tcp` (Fedora) o
 ## Evidências
 
 ```bash
-# M1: captura durante a bateria inteira (terminal próprio)
+# M1: captura durante a bateria inteira (terminal próprio), usada no T10
 mkdir -p evidencias
 sudo tcpdump -i any -nn 'tcp port 8080' -w evidencias/bateria.pcap
-# M3: grava o terminal (encerrar com exit no fim da bateria)
-mkdir -p evidencias && script -q evidencias/M3-terminal.txt
 ```
 
-O log do servidor vai para arquivo pelo `tee` (ver T0). Na M2 (Windows), os prints
-são a evidência: **Win+Shift+S**.
+Os prints são a evidência principal (no Windows: **Win+Shift+S**). O log do
+servidor vai para arquivo pelo `tee` (ver T0).
+
+*pcap* (*packet capture*) é o arquivo em que o `tcpdump` grava todos os pacotes da
+porta 8080, o mesmo formato que o Wireshark abre. Serve para o T10: provar, olhando
+a rede, que a chave nunca trafega e que cada login recebe um nonce diferente.
 
 Nome dos prints: `T<nº>-M<máquina>-<descrição>.png`. A pasta `evidencias/` está no
 `.gitignore`.
@@ -174,7 +177,7 @@ mesmo líder e o mesmo preço. O log da M1 mostra a ordem de chegada com milisse
 Envio manual não é simultâneo de verdade: o teste mostra consistência; a exclusão
 mútua se argumenta pelo `lote.lock`. Prints: T9-M2, T9-M3 e T9-M1.
 
-Fim da bateria: `quit` nos clientes, Ctrl+C no servidor e no `tcpdump`, `exit` no `script` da M3.
+Fim da bateria: `quit` nos clientes, Ctrl+C no servidor e no `tcpdump`.
 
 ## Bloco C: segurança
 
@@ -188,8 +191,9 @@ diferentes entre si; as chaves aparecem 0 vezes. Print: T10-M1.
 
 ## Depois da bateria
 
-Traga para a máquina onde o relatório será escrito: `evidencias/` da M1 (os dois logs
-do servidor e o pcap), `evidencias/M3-terminal.txt` e todos os prints.
+Traga para a máquina onde o relatório será escrito: os prints das três máquinas,
+`evidencias/` da M1 (`servidor-A.log`, `servidor-B.log` e `bateria.pcap`) e o SO,
+a versão e o IP de cada máquina.
 
 ## Para o relatório
 
