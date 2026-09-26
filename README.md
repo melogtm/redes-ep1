@@ -98,6 +98,21 @@ python3 src/client/main.py --host 127.0.0.1 --port 8080 --username bob --key-fil
 No cliente da alice: `join 1` e `bid 1 150.00`. O bob, depois de `join 1`, recebe
 `[PUSH/preco] lote 1: novo preço 150.00 por alice`.
 
+## Testes automatizados
+
+A partir da raiz do repositório:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+São 31 testes, que rodam em poucos segundos e usam só a biblioteca padrão.
+Os unitários cobrem o parser, o buffer de linhas, os preços e a regra do
+lance (inclusive o soft close). Os de integração sobem um servidor de
+verdade numa porta livre e mandam mensagens cruas pelo socket, para cobrir
+o que o cliente oficial não gera: `AUTH` e `BID` repetidos, forjados ou
+copiados de outra sessão.
+
 ## Formato dos arquivos
 
 `keys.conf`: um usuário por linha, `#` inicia comentário.
