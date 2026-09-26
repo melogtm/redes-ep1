@@ -1,6 +1,8 @@
 import argparse
+import logging
 import socket
 import threading
+import time
 from pathlib import Path
 
 from server.utils.client import lidar_com_cliente
@@ -11,6 +13,8 @@ from server.utils.utils import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+log = logging.getLogger("servidor")
 
 
 def main() -> None:
@@ -24,13 +28,33 @@ def main() -> None:
     parser.add_argument(
         "--lots", type=str, default=str(PROJECT_ROOT / "resources/keys/lots.conf")
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="mostra também as mensagens brutas do protocolo",
+    )
 
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
     chaves = carregar_chaves(args.keys)
     lotes = carregar_lotes(args.lots)
 
-    print(f"[SERVER] loaded {len(chaves)} keys and {len(lotes)} lots")
+    log.info("loaded %d keys and %d lots", len(chaves), len(lotes))
+    for lote in lotes.values():
+        fim = time.strftime("%H:%M:%S", time.localtime(lote.tempo_fim))
+        log.info(
+            "lote %d: %s | R$ %.2f | fecha às %s",
+            lote.id,
+            lote.descricao,
+            lote.preco_atual,
+            fim,
+        )
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -44,13 +68,15 @@ def main() -> None:
     thr = threading.Thread(target=monitorar_lote_fechamento, args=(lotes,), daemon=True)
     thr.start()
 
-    print(f"[SERVER] listening on port {args.port}")
+    log.info("listening on port %d", args.port)
 
     while True:
-        conn, _ = s.accept()
+        conn, endereco = s.accept()
 
         threading.Thread(
-            target=lidar_com_cliente, args=(conn, lotes, chaves), daemon=True
+            target=lidar_com_cliente,
+            args=(conn, endereco, lotes, chaves),
+            daemon=True,
         ).start()
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import socket
 import threading
 import time
@@ -19,6 +20,9 @@ from protocolo_cliente import (
     texto_assinado_lance,
     validar_nonce,
 )
+
+# Com --debug, registra cada linha do protocolo que entra ou sai do socket.
+log = logging.getLogger("cliente")
 
 
 class ErroCliente(Exception):
@@ -472,6 +476,7 @@ class ClienteLeilao:
             buffer = LineBuffer(self.config.tamanho_maximo_linha)
 
             # Etapa 1: LOGIN
+            log.debug("-> LOGIN %s", self.username)
             sock.sendall((f"LOGIN {self.username}\n").encode("utf-8"))
 
             partes = ler_mensagem(
@@ -498,6 +503,7 @@ class ClienteLeilao:
                 nonce,
             )
 
+            log.debug("-> AUTH %s", mac)
             sock.sendall((f"AUTH {mac}\n").encode("utf-8"))
 
             partes = ler_mensagem(
@@ -562,6 +568,7 @@ class ClienteLeilao:
             linhas = buffer.feed(data)
 
             if linhas:
+                log.debug("<- %s", linhas[0])
                 return linhas[0]
 
     def _instalar_socket(
@@ -597,6 +604,7 @@ class ClienteLeilao:
         try:
             with self._send_lock:
                 for lote_id in joins:
+                    log.debug("-> JOIN %d", lote_id)
                     sock.sendall((f"JOIN {lote_id}\n").encode("utf-8"))
 
         except OSError as exc:
@@ -650,6 +658,7 @@ class ClienteLeilao:
                 raise ConexaoPerdida("socket indisponível")
 
             try:
+                log.debug("-> %s", linha)
                 sock.sendall((linha + "\n").encode("utf-8"))
 
                 return geracao
@@ -697,6 +706,7 @@ class ClienteLeilao:
             linha = f"BID {lote_id} {preco_enviado} {seq} {mac}\n"
 
             try:
+                log.debug("-> %s", linha.rstrip("\n"))
                 sock.sendall(linha.encode("utf-8"))
 
             except OSError as exc:
@@ -743,6 +753,7 @@ class ClienteLeilao:
                 linhas = buffer.feed(data)
 
                 for linha in linhas:
+                    log.debug("<- %s", linha)
                     partes = ler_mensagem(linha)
 
                     if partes:

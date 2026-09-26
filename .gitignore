@@ -1,5 +1,8 @@
 __pycache__/
 *.pyc
-keys.conf
 *.keyfile
 !*.keyfile.example
+
+# Evidências da bateria de testes e fontes do relatório (ficam só locais)
+evidencias/
+overleaf/
