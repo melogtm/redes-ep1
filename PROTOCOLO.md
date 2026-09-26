@@ -112,16 +112,17 @@ cliente que fez o lance.
 
 ```bnf
 <price-update>         ::= "PRICE_UPDATE" <SP> <lot-id> <SP> <price>
-                            <SP> ":" <username>
+                            <SP> <epoch> <SP> ":" <username>
 <time-update>           ::= "TIME_UPDATE" <SP> <lot-id> <SP> <epoch>
 <close>                 ::= "CLOSE" <SP> <lot-id> <SP> <price> <SP>
                             ":" <winner>
 ```
 
 Após um lance aceito, o autor recebe `BID_ACCEPTED` e todos os inscritos
-recebem `PRICE_UPDATE` e `TIME_UPDATE`. Quando o tempo termina, todos recebem
-`CLOSE`, contendo o preço final e o vencedor; se não houver lances, o vencedor
-é `NONE`.
+recebem `PRICE_UPDATE` e `TIME_UPDATE`. O `<epoch>` do `PRICE_UPDATE` é o
+mesmo término enviado no `TIME_UPDATE` que vem logo em seguida. Quando o tempo
+termina, todos recebem `CLOSE`, contendo o preço final e o vencedor; se não
+houver lances, o vencedor é `NONE`.
 
 ## Fluxo mínimo
 
@@ -136,7 +137,7 @@ Cliente -> JOIN 1
 Servidor -> JOIN_OK ...
 Cliente -> BID 1 150.00 1 <mac>
 Servidor -> BID_ACCEPTED 1 150.00 <t_fim> 1
-Servidor -> PRICE_UPDATE 1 150.00 :alice
+Servidor -> PRICE_UPDATE 1 150.00 <t_fim> :alice
 Servidor -> TIME_UPDATE 1 <t_fim>
 Servidor -> CLOSE 1 150.00 :alice
 ```

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import logging
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -141,7 +142,20 @@ def main() -> int:
         ),
     )
 
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="mostra as mensagens brutas do protocolo com horário",
+    )
+
     args = parser.parse_args()
+
+    if args.debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s.%(msecs)03d %(message)s",
+            datefmt="%H:%M:%S",
+        )
 
     try:
         if args.key_file is not None:

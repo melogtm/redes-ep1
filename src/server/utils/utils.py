@@ -1,4 +1,5 @@
 import hmac
+import logging
 import socket
 import time
 
@@ -11,11 +12,21 @@ IDENTIFICADOR_COMENTARIO = "#"
 JANELA_DE_TEMPO_SEGUNDOS = 10
 TEMPO_MONITORAMENTO_SEGUNDOS = 1
 
+log = logging.getLogger("servidor")
+
+
+def hora(epoch: float) -> str:
+    return time.strftime("%H:%M:%S", time.localtime(epoch))
+
+
+def nomes(inscritos: list) -> str:
+    return ", ".join(sorted(username for _, username in inscritos))
+
 
 def carregar_chaves(caminho: str) -> dict:
     chaves = {}
 
-    with open(caminho, "r") as arquivo:
+    with open(caminho, "r", encoding="utf-8") as arquivo:
         for linha in arquivo:
             linha = linha.strip()
 
@@ -33,7 +44,7 @@ def carregar_chaves(caminho: str) -> dict:
 def carregar_lotes(caminho: str) -> dict:
     lotes = {}
 
-    with open(caminho, "r") as arquivo:
+    with open(caminho, "r", encoding="utf-8") as arquivo:
         for linha in arquivo:
             linha = linha.strip()
 
@@ -56,6 +67,14 @@ def carregar_lotes(caminho: str) -> dict:
 
 
 def enviar_mensagem(conn: socket.socket, mensagem: str) -> None:
+    if log.isEnabledFor(logging.DEBUG):
+        try:
+            ip, porta = conn.getpeername()[:2]
+            destino = f"{ip}:{porta}"
+        except OSError:
+            destino = "?"
+        log.debug("-> %s: %s", destino, mensagem.rstrip("\n"))
+
     try:
         conn.send(mensagem.encode())
     except OSError:
@@ -95,6 +114,7 @@ def comando_entrar(sessao: Sessao, partes: list, lotes: dict) -> None:
         return
 
     if lote_id not in lotes:
+        log.info("%s: JOIN %d -> JOIN_REJECTED UNKNOWN_LOTE", sessao, lote_id)
         enviar_mensagem(sessao.conn, f"JOIN_REJECTED {lote_id} UNKNOWN_LOTE\n")
         return
 
@@ -110,18 +130,33 @@ def comando_entrar(sessao: Sessao, partes: list, lotes: dict) -> None:
         desc = lote.descricao
         epoch = int(lote.tempo_fim)
 
+    log.info(
+        "%s: JOIN %d -> JOIN_OK (%s, R$ %.2f, fecha às %s)",
+        sessao,
+        lote_id,
+        status,
+        preco,
+        hora(epoch),
+    )
     enviar_mensagem(
         sessao.conn, f"JOIN_OK {lote_id} {status} {preco:.2f} {epoch} :{desc}\n"
     )
 
 
+def rejeitar_lance(sessao: Sessao, lote_id: int, motivo: str, seq: int) -> None:
+    log.info("%s: BID no lote %d -> BID_REJECTED %s", sessao, lote_id, motivo)
+    enviar_mensagem(sessao.conn, f"BID_REJECTED {lote_id} {motivo} {seq}\n")
+
+
 def comando_lance(sessao: Sessao, partes: list, lotes: dict, chaves: dict) -> None:
     if len(partes) < 5:
+        log.info("%s: BID malformado ignorado", sessao)
         return
 
     try:
         lote_id = int(partes[1])
     except ValueError:
+        log.info("%s: BID malformado ignorado", sessao)
         return
 
     preco_do_lance = partes[2]
@@ -132,18 +167,19 @@ def comando_lance(sessao: Sessao, partes: list, lotes: dict, chaves: dict) -> No
         preco_lance = float(preco_do_lance)
         seq = int(seq_str)
     except ValueError:
+        log.info("%s: BID malformado ignorado", sessao)
         return
 
     if lote_id not in lotes:
-        enviar_mensagem(sessao.conn, f"BID_REJECTED {lote_id} NO_SUCH_LOT {seq}\n")
+        rejeitar_lance(sessao, lote_id, "NO_SUCH_LOT", seq)
         return
 
     if lote_id not in sessao.lotes_inscritos:
-        enviar_mensagem(sessao.conn, f"BID_REJECTED {lote_id} NOT_JOINED {seq}\n")
+        rejeitar_lance(sessao, lote_id, "NOT_JOINED", seq)
         return
 
     if seq != sessao.proximo_seq:
-        enviar_mensagem(sessao.conn, f"BID_REJECTED {lote_id} BAD_SEQ {seq}\n")
+        rejeitar_lance(sessao, lote_id, "BAD_SEQ", seq)
         return
 
     lance_string_assinada = assinar_lance_string(
@@ -155,18 +191,18 @@ def comando_lance(sessao: Sessao, partes: list, lotes: dict, chaves: dict) -> No
     esperado = assinar_bytes(chave_do_client.encode(), lance_string_assinada.encode())
 
     if not hmac.compare_digest(client_hmac.encode(), esperado.encode()):
-        enviar_mensagem(sessao.conn, f"BID_REJECTED {lote_id} BAD_MAC {seq}\n")
+        rejeitar_lance(sessao, lote_id, "BAD_MAC", seq)
         return
 
     lote = lotes[lote_id]
 
     with lote.lock:
         if lote.status != LoteStatus.OPEN:
-            enviar_mensagem(sessao.conn, f"BID_REJECTED {lote_id} CLOSED {seq}\n")
+            rejeitar_lance(sessao, lote_id, "CLOSED", seq)
             return
 
         if preco_lance <= lote.preco_atual:
-            enviar_mensagem(sessao.conn, f"BID_REJECTED {lote_id} LOW_BID {seq}\n")
+            rejeitar_lance(sessao, lote_id, "LOW_BID", seq)
             return
 
         sessao.proximo_seq += 1
@@ -178,10 +214,23 @@ def comando_lance(sessao: Sessao, partes: list, lotes: dict, chaves: dict) -> No
 
         # Um lance nos últimos 10 segundos estende o leilão para evitar um
         # encerramento abrupto.
-        if tempo_fim_anterior - agora < JANELA_DE_TEMPO_SEGUNDOS:
+        prorrogado = tempo_fim_anterior - agora < JANELA_DE_TEMPO_SEGUNDOS
+        if prorrogado:
             lote.tempo_fim = agora + JANELA_DE_TEMPO_SEGUNDOS
 
         inscritos_para_notificar = list(lote.inscritos)
+
+        log.info(
+            "%s: BID no lote %d a R$ %.2f (seq %d) -> BID_ACCEPTED; fim %s%s",
+            sessao,
+            lote_id,
+            preco_lance,
+            seq,
+            hora(lote.tempo_fim),
+            f" (soft close: faltavam {tempo_fim_anterior - agora:.1f} s)"
+            if prorrogado
+            else "",
+        )
 
         enviar_mensagem(
             sessao.conn,
@@ -189,19 +238,20 @@ def comando_lance(sessao: Sessao, partes: list, lotes: dict, chaves: dict) -> No
         )
 
         for conn, _ in inscritos_para_notificar:
-            try:
-                conn.send(
-                    f"PRICE_UPDATE {lote_id} {preco_lance:.2f} "
-                    f"{int(lote.tempo_fim)} :{sessao.username}\n".encode()
-                )
-            except OSError:
-                pass
+            enviar_mensagem(
+                conn,
+                f"PRICE_UPDATE {lote_id} {preco_lance:.2f} "
+                f"{int(lote.tempo_fim)} :{sessao.username}\n",
+            )
 
         for conn, _ in inscritos_para_notificar:
-            try:
-                conn.send(f"TIME_UPDATE {lote_id} {int(lote.tempo_fim)}\n".encode())
-            except OSError:
-                pass
+            enviar_mensagem(conn, f"TIME_UPDATE {lote_id} {int(lote.tempo_fim)}\n")
+
+        log.info(
+            "lote %d: PRICE_UPDATE e TIME_UPDATE para [%s]",
+            lote_id,
+            nomes(inscritos_para_notificar),
+        )
 
 
 def monitorar_lote_fechamento(lotes: dict) -> None:
@@ -224,8 +274,13 @@ def monitorar_lote_fechamento(lotes: dict) -> None:
 
                 inscritos_para_notificar = list(lote.inscritos)
 
+            log.info(
+                "lote %d fechado: vencedor %s, R$ %.2f; CLOSE para [%s]",
+                lote.id,
+                ganhador,
+                preco,
+                nomes(inscritos_para_notificar),
+            )
+
             for conn, _ in inscritos_para_notificar:
-                try:
-                    conn.send(f"CLOSE {lote.id} {preco:.2f} :{ganhador}\n".encode())
-                except OSError:
-                    pass
+                enviar_mensagem(conn, f"CLOSE {lote.id} {preco:.2f} :{ganhador}\n")

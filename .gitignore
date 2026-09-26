@@ -1,5 +1,14 @@
+# Python
 __pycache__/
 *.pyc
-keys.conf
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# Chaves extras geradas localmente (o keys.conf do EP vai versionado)
 *.keyfile
 !*.keyfile.example
+
+# Evidências da bateria de testes e fontes do relatório (ficam só locais)
+evidencias/
+overleaf/
