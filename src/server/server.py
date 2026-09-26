@@ -1,3 +1,9 @@
+"""Ponto de entrada do servidor de leilão.
+
+Uso, a partir de src/:
+    python3 -m server.server [--port 8080] [--keys ...] [--lots ...] [--debug]
+"""
+
 import argparse
 import logging
 import socket
@@ -18,6 +24,7 @@ log = logging.getLogger("servidor")
 
 
 def main() -> None:
+    """Carrega chaves e lotes, abre a porta e cria uma thread por cliente."""
 
     parser = argparse.ArgumentParser()
 

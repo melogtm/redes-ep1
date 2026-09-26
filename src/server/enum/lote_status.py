@@ -1,3 +1,5 @@
+"""Estados possíveis de um lote."""
+
 from enum import Enum
 
 

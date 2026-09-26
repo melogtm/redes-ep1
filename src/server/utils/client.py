@@ -1,3 +1,9 @@
+"""Atendimento de uma conexão, do lado do servidor.
+
+Apesar do nome, este módulo roda no servidor: cada cliente conectado ganha
+uma thread que executa lidar_com_cliente.
+"""
+
 import logging
 import socket
 
@@ -22,6 +28,11 @@ log = logging.getLogger("servidor")
 def lidar_com_cliente(
     conn: socket.socket, endereco: tuple[str, int], lotes: dict, chaves: dict
 ) -> None:
+    """Atende uma conexão até LOGOUT, falha de autenticação, FIN ou timeout.
+
+    Antes de autenticar, só LOGIN e AUTH são aceitos; o resto é ignorado.
+    Ao sair, tira a sessão dos lotes em que estava inscrita e fecha o socket.
+    """
     sessao = Sessao(conn, endereco)
     buf = LineBuffer()
     motivo = "conexão encerrada"

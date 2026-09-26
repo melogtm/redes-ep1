@@ -1,12 +1,17 @@
+"""Leitura das linhas do protocolo e cálculo do HMAC."""
+
 import hashlib
 import hmac
 
 
 class LineBuffer:
+    """Junta os bytes recebidos e devolve apenas linhas completas."""
+
     def __init__(self):
         self._buf = bytearray()
 
     def feed(self, data: bytes) -> list[str]:
+        """Acrescenta data ao buffer e devolve as linhas já terminadas em LF."""
         # TCP entrega um fluxo: uma leitura pode conter várias mensagens ou
         # apenas parte de uma.
         self._buf.extend(data)
@@ -19,6 +24,12 @@ class LineBuffer:
 
 
 def ler_mensagem(linha: str) -> list[str]:
+    """Separa uma linha em campos.
+
+    Um campo iniciado por ':' vai até o fim da linha, com espaços:
+    'LOT 2 OPEN 50.00 1790448485 :Lote longo' vira
+    ['LOT', '2', 'OPEN', '50.00', '1790448485', 'Lote longo'].
+    """
     linha = linha.strip()
     if not linha:
         return []
@@ -38,13 +49,10 @@ def ler_mensagem(linha: str) -> list[str]:
 
 
 def assinar_lance_string(lote_id: str, preco: str, seq: str, nonce: str) -> str:
-    # O cliente deve assinar exatamente este texto para o servidor validar o lance.
+    """Texto que o cliente assina em cada BID; precisa ser idêntico dos dois lados."""
     return f"LANCE {lote_id} {preco} {seq} {nonce}"
 
 
-def assinar(key: str, data: str) -> str:
-    return hmac.new(key.encode(), data.encode(), hashlib.sha256).hexdigest()
-
-
 def assinar_bytes(key: bytes, data: bytes) -> str:
+    """HMAC-SHA256 de data com a chave key, em hexadecimal minúsculo."""
     return hmac.new(key, data, hashlib.sha256).hexdigest()
